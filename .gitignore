@@ -1,0 +1,11 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Output / temp
+output/
+
+# OS
+.DS_Store
+Thumbs.db
