@@ -1,0 +1,52 @@
+# ==================================================
+# Jeffryn Dead Reckoning Engine — Configuration
+# ==================================================
+# PS 26168 — Intelligent Vehicle Navigation During GNSS Outages
+# Author: Jeffryn Adaikalaraj A
+#
+# Coordinate convention:
+#   Local frame: X = East (m), Y = North (m)
+#   Heading: 0° = North, 90° = East (navigation convention)
+
+earth:
+  radius_m: 6371000.0
+
+timing:
+  minimum_dt_seconds: 0.001
+  maximum_dt_seconds: 2.0
+
+heading:
+  default_heading_deg: 0.0
+  minimum_gps_displacement_m: 1.5
+  gyro_yaw_sign: 1.0
+
+sensors:
+  gyroscope_unit: degrees_per_second      # degrees_per_second | radians_per_second
+  forward_acceleration_axis: accel_x       # Which raw column to use
+  forward_acceleration_sign: 1.0           # Flip sign if sensor axis is reversed
+  acceleration_filter_alpha: 0.25          # EMA low-pass filter weight (0–1)
+
+velocity:
+  mode: hybrid                             # sensor_speed | acceleration | hybrid
+  speed_is_gnss_derived: false             # CRITICAL: set true if speed comes from GPS
+  hybrid_speed_weight: 0.7                 # Blend weight α for sensor speed in hybrid mode
+  maximum_speed_mps: 60.0
+
+calibration:
+  enable_auto_bias_estimation: true
+  minimum_stationary_samples: 10
+  stationary_speed_threshold_mps: 0.15
+  gyro_bias_z: 0.0                         # Static fallback bias (deg/s or rad/s)
+  forward_acceleration_bias: 0.0           # Static fallback bias (m/s²)
+
+vehicle:
+  minimum_speed_mps: 0.0
+  maximum_speed_mps: 60.0
+  minimum_acceleration_mps2: -8.0
+  maximum_acceleration_mps2: 6.0
+  maximum_yaw_rate_deg_s: 120.0
+  stationary_speed_threshold_mps: 0.15
+
+output:
+  include_quality_flags: true
+  floating_point_precision: 8

@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>MapX — Real-Time Navigation & Dead Reckoning System</title>
+    <meta name="description" content="MapX: Google Maps style real-time navigation with AI-assisted Dead Reckoning for seamless positioning during GNSS outages.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Inter:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Leaflet Map Library (CDN) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <!-- Chart.js for Engineering Debug Metrics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="google-maps-theme">
+
+    <!-- Main Navigation Application Wrapper -->
+    <div id="app" class="app-container">
+
+        <!-- Fullscreen Leaflet Map Viewport -->
+        <div id="map-viewport" class="map-viewport-wrapper">
+            <div id="map" class="map-container"></div>
+        </div>
+
+        <!-- Permanent Floating Menu Button -->
+        <button id="menu-btn" class="floating-menu-btn" aria-label="Open Navigation Menu" title="Menu">
+            <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
+
+        <!-- ========================================================= -->
+        <!-- TOP UI: GOOGLE MAPS SEARCH & DESTINATION SELECTOR         -->
+        <!-- ========================================================= -->
+        <header id="top-search-bar" class="search-header-container">
+            <div class="search-box-card">
+                <div class="search-input-wrapper">
+                    <input type="text" id="destination-input" placeholder="Search destination or address..." autocomplete="off" spellcheck="false" />
+                </div>
+
+                <button id="locate-me-btn" class="icon-button locate-btn" aria-label="Use Current GPS Location" title="Get My Current Location">
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="7"></circle><line x1="12" y1="1" x2="12" y2="5"></line><line x1="12" y1="19" x2="12" y2="23"></line><line x1="1" y1="12" x2="5" y2="12"></line><line x1="19" y1="12" x2="23" y2="12"></line></svg>
+                </button>
+
+                <button id="clear-search-btn" class="icon-button clear-btn hidden" aria-label="Clear Search">
+                    <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2.5" fill="none"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+
+            <!-- Autocomplete Search Dropdown -->
+            <div id="search-suggestions" class="search-dropdown hidden"></div>
+
+            <!-- Category Quick Chips -->
+            <div id="category-chips-bar" class="chips-scroll-container">
+                <button class="chip-btn active" data-query="current">
+                    <span class="chip-icon">📍</span> My GPS Location
+                </button>
+                <button class="chip-btn" data-query="gandhi road">
+                    <span class="chip-icon">🛣️</span> Gandhi Road
+                </button>
+                <button class="chip-btn" data-query="tambaram">
+                    <span class="chip-icon">🚆</span> Tambaram
+                </button>
+                <button class="chip-btn" data-query="isro">
+                    <span class="chip-icon">🚀</span> ISRO Centers
+                </button>
+                <button class="chip-btn" data-query="tech park">
+                    <span class="chip-icon">🏢</span> Tech Parks
+                </button>
+                <button class="chip-btn" data-query="airport">
+                    <span class="chip-icon">✈️</span> Airport
+                </button>
+            </div>
+        </header>
+
+        <!-- ========================================================= -->
+        <!-- TOP DRIVING MANEUVER CARD (Exact Google Maps Style Teal)  -->
+        <!-- ========================================================= -->
+        <div id="navigation-banner" class="nav-banner-wrapper hidden">
+            <!-- Primary Turn Card -->
+            <div class="nav-banner-card">
+                <div class="nav-banner-left">
+                    <div id="nav-maneuver-icon" class="maneuver-icon-box">
+                        <svg viewBox="0 0 24 24" width="38" height="38" fill="currentColor"><path d="M12 2L4 10h5v10h6V10h5L12 2z"/></svg>
+                    </div>
+                </div>
+                <div class="nav-banner-middle">
+                    <div class="nav-sub-direction">towards <span id="nav-target-road" class="bold-road">Gandhi Road</span></div>
+                    <div id="nav-instruction-text" class="nav-instruction-value">In 350 m, continue straight</div>
+                </div>
+            </div>
+
+            <!-- "Then Turn" Secondary Pill -->
+            <div id="nav-then-pill" class="nav-then-pill">
+                <span class="then-label">Then</span>
+                <span id="then-maneuver-icon" class="then-icon">↱</span>
+            </div>
+        </div>
+
+        <!-- ========================================================= -->
+        <!-- FLOATING SPEEDOMETER HUD (Google Maps Driving Pill)       -->
+        <!-- ========================================================= -->
+        <div id="speedometer-hud" class="speedometer-container">
+            <div class="speed-dial-card">
+                <div class="speed-number-box">
+                    <span id="live-speed-val" class="speed-number">45</span>
+                    <span class="speed-unit">km/h</span>
+                </div>
+                <div id="live-heading-val" class="heading-text-val" style="font-size: 8.5px; font-weight: 700; color: #9aa0a6; margin-top: 2px; letter-spacing: 0.4px; text-transform: uppercase;">Heading North ↑</div>
+                <div id="gnss-status-badge" class="gnss-badge gnss-active">
+                    <span class="gnss-dot"></span>
+                    <span id="gnss-status-label" class="gnss-text">GPS ACTIVE</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================================= -->
+        <!-- FLOATING RE-CENTER BUTTON (Appears when map is panned)    -->
+        <!-- ========================================================= -->
+        <div id="recenter-pill-wrapper" class="recenter-pill-container hidden">
+            <button id="recenter-main-btn" class="recenter-pill-btn">
+                <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2.2" fill="none"><circle cx="12" cy="12" r="7"></circle><line x1="12" y1="1" x2="12" y2="5"></line><line x1="12" y1="19" x2="12" y2="23"></line><line x1="1" y1="12" x2="5" y2="12"></line><line x1="19" y1="12" x2="23" y2="12"></line></svg>
+                <span>Re-center</span>
+            </button>
+        </div>
+
+        <!-- ========================================================= -->
+        <!-- RIGHT FLOATING CONTROLS (Compass, Search, Voice, Hazard) -->
+        <!-- ========================================================= -->
+        <div id="map-controls-stack" class="map-floating-controls">
+            <!-- 3D Heading Compass Needle -->
+            <button id="compass-btn" class="control-fab compass-fab" title="Reset North">
+                <div id="compass-needle" class="compass-needle">
+                    <div class="needle-north"></div>
+                    <div class="needle-south"></div>
+                </div>
+            </button>
+
+            <!-- 3D / 2D Driving Perspective Toggle -->
+            <button id="toggle-3d-btn" class="control-fab" title="Toggle 3D View">
+                <span class="fab-label">3D</span>
+            </button>
+
+            <!-- Voice Guidance Audio Toggle -->
+            <button id="sound-toggle-btn" class="control-fab" title="Toggle Voice Guidance">
+                <svg id="sound-icon-svg" viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2.2" fill="none"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+            </button>
+
+            <!-- GNSS Outage Simulator Trigger (Hazard Icon Style) -->
+            <button id="quick-gnss-outage-btn" class="control-fab hazard-fab" title="Simulate GNSS Outage (Dead Reckoning Mode)">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2L1 21h22L12 2zm0 3.8L19.5 19h-15L12 5.8zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2z"/></svg>
+            </button>
+
+            <!-- Quick Recenter FAB -->
+            <button id="recenter-btn" class="control-fab" title="Recenter on Vehicle">
+                <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2.2" fill="none"><circle cx="12" cy="12" r="7"></circle><line x1="12" y1="1" x2="12" y2="5"></line><line x1="12" y1="19" x2="12" y2="23"></line><line x1="1" y1="12" x2="5" y2="12"></line><line x1="19" y1="12" x2="23" y2="12"></line></svg>
+            </button>
+        </div>
+
+        <!-- ========================================================= -->
+        <!-- BOTTOM GOOGLE MAPS NAVIGATION SHEET                       -->
+        <!-- ========================================================= -->
+        <footer id="bottom-sheet" class="bottom-navigation-sheet">
+            <div class="sheet-handle-bar"><div class="sheet-handle"></div></div>
+
+            <!-- Route Preview Mode (Before Starting) -->
+            <div id="route-preview-panel" class="sheet-content">
+                <div class="route-info-header">
+                    <div class="route-destination-info">
+                        <h2 id="preview-dest-title" class="dest-title">Gandhi Road</h2>
+                        <p id="preview-dest-address" class="dest-subtitle">From My GPS Location</p>
+                    </div>
+                    <div class="route-eta-box">
+                        <span id="preview-eta-duration" class="eta-duration">9 min</span>
+                        <span id="preview-eta-distance" class="eta-distance">(1.9 km)</span>
+                    </div>
+                </div>
+
+                <div class="route-actions-row">
+                    <button id="start-nav-btn" class="primary-nav-btn">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg>
+                        <span>Start Navigation</span>
+                    </button>
+                    <button id="preview-steps-btn" class="secondary-nav-btn">
+                        <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                        <span>Steps</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Active Driving HUD Panel (Dark Rounded Driving Bar like Google Maps) -->
+            <div id="active-driving-panel" class="sheet-content dark-driving-sheet hidden">
+                <div class="driving-stats-bar">
+                    <!-- Exit Navigation ✕ Button -->
+                    <button id="exit-nav-btn" class="exit-cross-btn" title="Exit Navigation">
+                        <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2.5" fill="none"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+
+                    <!-- Center ETA Information -->
+                    <div class="driving-eta-block">
+                        <div class="driving-eta-main">
+                            <span id="drive-remaining-time" class="eta-time-val text-red">9 min</span>
+                        </div>
+                        <div class="driving-eta-sub">
+                            <span id="drive-remaining-dist">1.9 km</span> &bull; <span id="drive-eta-clock">7:03 pm</span>
+                        </div>
+                    </div>
+
+                    <!-- Right Options & Metrics Buttons -->
+                    <div class="driving-right-actions">
+                        <button id="drive-metrics-btn" class="action-circle-btn" title="System Metrics">
+                            <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M18 20V10M12 20V4M6 20v-6"></path></svg>
+                        </button>
+                        <button id="drive-route-options-btn" class="action-circle-btn" title="Route Alternatives">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M14 4l2.29 2.29-2.88 2.88 1.42 1.42 2.88-2.88L20 10V4zm-4 0H4v6l2.29-2.29 4.71 4.7V20h2v-8.41l-5.29-5.3L10 4z"/></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </footer>
+
+        <!-- ========================================================= -->
+        <!-- SLIDE-OVER CATEGORIES DRAWER MENU                         -->
+        <!-- ========================================================= -->
+        <div id="menu-overlay" class="drawer-overlay hidden"></div>
+        <aside id="side-drawer" class="side-drawer-menu">
+            <div class="drawer-header">
+                <div class="app-branding">
+                    <div class="brand-logo">📍</div>
+                    <div class="brand-text">
+                        <h3>MapX</h3>
+                        <span>Intelligent Dead Reckoning Navigation</span>
+                    </div>
+                </div>
+                <button id="close-drawer-btn" class="icon-button">
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+
+            <nav class="drawer-nav">
+                <a href="#" class="drawer-item active" id="menu-nav-btn">
+                    <span class="drawer-icon">🗺️</span>
+                    <span class="drawer-label">Live Navigation</span>
+                </a>
+                <a href="#" class="drawer-item" id="menu-gps-btn">
+                    <span class="drawer-icon">📍</span>
+                    <span class="drawer-label">Get My Real GPS Location</span>
+                </a>
+                <a href="#" class="drawer-item" id="menu-saved-btn">
+                    <span class="drawer-icon">⭐</span>
+                    <span class="drawer-label">Saved Places</span>
+                </a>
+                <a href="#" class="drawer-item drawer-item-highlight" id="menu-metrics-btn">
+                    <span class="drawer-icon">📊</span>
+                    <span class="drawer-label">System Metrics (Debug)</span>
+                    <span class="badge-tag">ISRO PS 26168</span>
+                </a>
+            </nav>
+
+            <div class="drawer-footer">
+                <p><strong>MapX Navigation</strong> &bull; ISRO PS 26168</p>
+                <p class="text-muted">AI-ML Dead Reckoning & IMU Fusion Prototype</p>
+            </div>
+        </aside>
+
+        <!-- ========================================================= -->
+        <!-- SYSTEM METRICS & ENGINEERING EVALUATION MODAL             -->
+        <!-- ========================================================= -->
+        <div id="metrics-modal" class="modal-backdrop hidden">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <div class="modal-title-box">
+                        <span class="modal-badge">ENGINEERING MODE</span>
+                        <h2>System Metrics & Evaluation</h2>
+                        <p>Dead Reckoning Drift, Sensor State & Ground Truth Comparison</p>
+                    </div>
+                    <button id="close-metrics-btn" class="icon-button">
+                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                </div>
+
+                <div class="modal-body">
+                    <!-- Outage Simulation Controls -->
+                    <div class="debug-section">
+                        <h3>GNSS Outage Simulation Controls</h3>
+                        <p class="section-desc">Trigger controlled GNSS outage to evaluate Dead Reckoning positioning accuracy.</p>
+                        <div class="outage-buttons-row">
+                            <button id="outage-15s-btn" class="btn-secondary">15s Outage (Tunnel)</button>
+                            <button id="outage-30s-btn" class="btn-secondary">30s Outage (Urban Canyon)</button>
+                            <button id="outage-toggle-btn" class="btn-warning">Toggle Outage</button>
+                            <button id="outage-restore-btn" class="btn-success">Restore GNSS</button>
+                        </div>
+                    </div>
+
+                    <!-- Quantitative Accuracy Metrics Cards -->
+                    <div class="debug-section">
+                        <h3>Position Error & Drift Evaluation</h3>
+                        <div class="metrics-grid">
+                            <div class="metric-box">
+                                <span class="m-label">Current Error</span>
+                                <span id="metric-current-err" class="m-val">0.0 m</span>
+                                <span class="m-desc">Haversine to True Pos</span>
+                            </div>
+                            <div class="metric-box">
+                                <span class="m-label">MAE (Mean Absolute Error)</span>
+                                <span id="metric-mae" class="m-val text-blue">0.0 m</span>
+                                <span class="m-desc">Average drift across outage</span>
+                            </div>
+                            <div class="metric-box">
+                                <span class="m-label">RMSE</span>
+                                <span id="metric-rmse" class="m-val text-blue">0.0 m</span>
+                                <span class="m-desc">Root Mean Squared Error</span>
+                            </div>
+                            <div class="metric-box">
+                                <span class="m-label">Drift Percentage</span>
+                                <span id="metric-drift" class="m-val text-emerald">0.00 %</span>
+                                <span class="m-desc">(Max Error / Dist) × 100</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Live Real-Time Chart of Error vs Time -->
+                    <div class="debug-section">
+                        <h3>Live Trajectory Error (m) vs Time</h3>
+                        <div class="chart-container">
+                            <canvas id="error-chart" height="130"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Trajectory Legends & Explanation -->
+                    <div class="debug-section">
+                        <h3>Trajectory Map Legend</h3>
+                        <div class="legend-items-row">
+                            <div class="legend-item"><span class="legend-color legend-green"></span> Ground Truth (Real Trajectory)</div>
+                            <div class="legend-item"><span class="legend-color legend-blue"></span> Estimated Navigation (DR + EKF)</div>
+                            <div class="legend-item"><span class="legend-color legend-orange"></span> Outage Interval</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Main Navigation Application Logic -->
+    <script src="app.js"></script>
+</body>
+</html>
